@@ -12,10 +12,6 @@
                       Content="Dark Theme"
                       Margin="0,5"/>
 
-            <CheckBox IsChecked="{local:Setting AutoUpdate}"
-                      Content="Auto Update"
-                      Margin="0,5"/>
-
             <Grid Margin="0,5">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -67,8 +63,10 @@
             </Grid>
 
             <CheckBox IsChecked="{local:Setting UseDeskDupl}"
-                      Margin="0,5"
-                      Content="Use Desktop Duplication API (Windows 8 or above)"/>
+                      Margin="0,5">
+                <TextBlock TextWrapping="Wrap"
+                           Text="Use Desktop Duplication API (Windows 8 or above)"/>
+            </CheckBox>
         </StackPanel>
     </Grid>
 </Page>

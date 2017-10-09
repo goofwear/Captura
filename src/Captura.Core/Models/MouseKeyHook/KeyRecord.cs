@@ -3,7 +3,7 @@ using System.Windows.Forms;
 
 namespace Captura.Models
 {
-    public class KeyRecord
+    public class KeyRecord : IKeyRecord
     {
         public KeyRecord(KeyEventArgs KeyEventArgs)
         {
@@ -13,6 +13,8 @@ namespace Captura.Models
             Control = KeyEventArgs.Control;
             Shift = KeyEventArgs.Shift;
             Alt = KeyEventArgs.Alt;
+
+            Display = GetDisplay();
         }
 
         public DateTime TimeStamp { get; }
@@ -23,13 +25,15 @@ namespace Captura.Models
         public bool Shift { get; private set; }
         public bool Alt { get; }
         
-        public bool IsAlpha => Key >= Keys.A && Key <= Keys.Z;
+        public string Display { get; }
 
-        public bool IsNum => (Key >= Keys.D0 && Key <= Keys.D9) || (Key >= Keys.NumPad0 && Key <= Keys.NumPad9);
+        bool IsAlpha => Key >= Keys.A && Key <= Keys.Z;
 
-        public bool IsSpecialDPadCharacter => !Alt && !Control && Shift && (Key >= Keys.D0 && Key <= Keys.D9);
+        bool IsNum => (Key >= Keys.D0 && Key <= Keys.D9) || (Key >= Keys.NumPad0 && Key <= Keys.NumPad9);
 
-        public bool IsOem => Key.ToString().Contains("Oem");
+        bool IsSpecialDPadCharacter => !Alt && !Control && Shift && (Key >= Keys.D0 && Key <= Keys.D9);
+
+        bool IsOem => Key.ToString().Contains("Oem");
 
         static readonly char[] DPadChars = {
             ')',
@@ -44,9 +48,9 @@ namespace Captura.Models
             '('
         };
 
-        public char AsSpecialDPadCharacter => DPadChars[Key - Keys.D0];
+        char AsSpecialDPadCharacter => DPadChars[Key - Keys.D0];
 
-        public int AsNum
+        int AsNum
         {
             get
             {
@@ -69,7 +73,7 @@ namespace Captura.Models
             return NonShiftChar.ToString();
         }
 
-        public string AsOemChar
+        string AsOemChar
         {
             get
             {
@@ -113,10 +117,35 @@ namespace Captura.Models
             }
         }
         
-        public string Modifiers => $"{(Control ? "Ctrl + " : "")}{(Shift ? "Shift + " : "")}{(Alt ? "Alt + " : "")}";
+        string Modifiers => $"{(Control ? "Ctrl + " : "")}{(Shift ? "Shift + " : "")}{(Alt ? "Alt + " : "")}";
 
-        public override string ToString()
+        string GetDisplay()
         {
+            switch (Key)
+            {
+                case Keys.Shift:
+                case Keys.ShiftKey:
+                case Keys.LShiftKey:
+                case Keys.RShiftKey:
+                    return "Shift";
+
+                case Keys.Control:
+                case Keys.ControlKey:
+                case Keys.LControlKey:
+                case Keys.RControlKey:
+                    return "Ctrl";
+
+                case Keys.Alt:
+                case Keys.Menu:
+                case Keys.LMenu:
+                case Keys.RMenu:
+                    return "Alt";
+
+                case Keys.LWin:
+                case Keys.RWin:
+                    return "Win";
+            }
+
             var result = "";
 
             if (IsSpecialDPadCharacter)
@@ -166,6 +195,54 @@ namespace Captura.Models
                         result += "/";
                         break;
 
+                    case Keys.Escape:
+                        result += "Esc";
+                        break;
+
+                    case Keys.Delete:
+                        result += "Del";
+                        break;
+
+                    case Keys.PageUp:
+                        result += "Pg Up";
+                        break;
+
+                    case Keys.PageDown:
+                        result += "Pg Dn";
+                        break;
+
+                    case Keys.PrintScreen:
+                        result += "Prt Sc";
+                        break;
+
+                    case Keys.VolumeMute:
+                        result += "Mute";
+                        break;
+
+                    case Keys.VolumeUp:
+                        result += "Vol +";
+                        break;
+                    
+                    case Keys.VolumeDown:
+                        result += "Vol -";
+                        break;
+
+                    case Keys.Up:
+                        result += " ↑ ";
+                        break;
+
+                    case Keys.Down:
+                        result += " ↓ ";
+                        break;
+
+                    case Keys.Left:
+                        result += " ← ";
+                        break;
+
+                    case Keys.Right:
+                        result += " → ";
+                        break;
+
                     case Keys.NumLock:
                         result += $"NumLock: {(Console.NumberLock ? "On" : "Off")}";
                         break;
@@ -182,5 +259,7 @@ namespace Captura.Models
 
             return result;
         }
+
+        public override string ToString() => Display;
     }
 }

@@ -28,10 +28,6 @@
                                           Visibility="{Binding MouseKeyHookAvailable, Converter={StaticResource BoolToVisibilityConverter}}"
                                           IconData="{StaticResource Icon_Keyboard}"
                                           IsChecked="{local:Setting KeyStrokes}"/>
-                <local:ModernButton ToolTip="{local:Loc CustomizeClickAndKeysOverlays}"
-                                    Visibility="{Binding MouseKeyHookAvailable, Converter={StaticResource BoolToVisibilityConverter}}"
-                                    IconData="{StaticResource Icon_More}"
-                                    Click="OpenMouseKeyHook"/>
             </StackPanel>
         </DockPanel>
 
@@ -71,6 +67,7 @@
                       ItemsSource="{Binding VideoViewModel.AvailableVideoSources}" 
                       SelectedValue="{Binding VideoViewModel.SelectedVideoSource, Mode=TwoWay}"
                       IsEnabled="{Binding RecorderState, Converter={StaticResource NotRecordingConverter}}"
+                      DisplayMemberPath="Name"
                       Grid.Column="2"/>
         </Grid>
 
@@ -86,6 +83,7 @@
 
             <ComboBox ItemsSource="{Binding WebCamProvider.AvailableCams}"
                       SelectedItem="{Binding WebCamProvider.SelectedCam, Mode=TwoWay}"
+                      DisplayMemberPath="Name"
                       Margin="0,0,7,0"/>
         </DockPanel>
 
@@ -209,6 +207,7 @@
                       Margin="7,0"
                       ItemsSource="{Binding AudioViewModel.AudioSource.AvailableRecordingSources}"
                       SelectedValue="{Binding AudioViewModel.AudioSource.SelectedRecordingSource, Mode=TwoWay}"
+                      DisplayMemberPath="Name"
                       IsEnabled="{Binding RecorderState, Converter={StaticResource NotRecordingConverter}}"/>
         </DockPanel>
         
@@ -225,6 +224,7 @@
                       Margin="7,0"
                       ItemsSource="{Binding AudioViewModel.AudioSource.AvailableLoopbackSources}"
                       SelectedValue="{Binding AudioViewModel.AudioSource.SelectedLoopbackSource, Mode=TwoWay}"
+                      DisplayMemberPath="Name"
                       IsEnabled="{Binding RecorderState, Converter={StaticResource NotRecordingConverter}}"/>
         </DockPanel>
 

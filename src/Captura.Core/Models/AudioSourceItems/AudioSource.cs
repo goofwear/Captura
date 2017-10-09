@@ -7,15 +7,6 @@ namespace Captura.Models
     // Users need to call Init and Dispose methods
     public abstract class AudioSource : NotifyPropertyChanged, IDisposable
     {
-        class NoSoundItem : IAudioItem
-        {
-            public static NoSoundItem Instance { get; } = new NoSoundItem();
-
-            NoSoundItem() { }
-
-            public override string ToString() => "[No Sound]";
-        }
-
         public ObservableCollection<IAudioItem> AvailableRecordingSources { get; } = new ObservableCollection<IAudioItem>();
         public ObservableCollection<IAudioItem> AvailableLoopbackSources { get; } = new ObservableCollection<IAudioItem>();
 

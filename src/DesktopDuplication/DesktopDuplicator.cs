@@ -9,7 +9,6 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.Threading.Tasks;
 using Device = SharpDX.Direct3D11.Device;
-using DRectangle = System.Drawing.Rectangle;
 using MapFlags = SharpDX.Direct3D11.MapFlags;
 
 namespace DesktopDuplication
@@ -25,14 +24,14 @@ namespace DesktopDuplication
         Texture2D _desktopImageTexture;
         OutputDuplicateFrameInformation _frameInfo;
 
-        DRectangle _rect;
+        Rectangle _rect;
 
         readonly bool _includeCursor;
         #endregion
 
         public int Timeout { get; set; }
 
-        public DesktopDuplicator(DRectangle Rect, bool IncludeCursor, int Monitor, int Adapter = 0)
+        public DesktopDuplicator(Rectangle Rect, bool IncludeCursor, int Monitor, int Adapter = 0)
         {
             _rect = Rect;
             _includeCursor = IncludeCursor;
@@ -80,12 +79,13 @@ namespace DesktopDuplication
             {
                 _deskDupl = output1.DuplicateOutput(_device);
             }
-            catch (SharpDXException e)
+            catch (SharpDXException e) when (e.Descriptor == SharpDX.DXGI.ResultCode.NotCurrentlyAvailable)
             {
-                if (e.ResultCode.Code == SharpDX.DXGI.ResultCode.NotCurrentlyAvailable.Result.Code)
-                {
-                    throw new Exception("There is already the maximum number of applications using the Desktop Duplication API running, please close one of the applications and try again.", e);
-                }
+                throw new Exception("There is already the maximum number of applications using the Desktop Duplication API running, please close one of the applications and try again.", e);
+            }
+            catch (SharpDXException e) when (e.Descriptor == SharpDX.DXGI.ResultCode.Unsupported)
+            {
+                throw new Exception("Desktop Duplication is not supported on this system.\nIf you have multiple graphic cards, try running Captura on integrated graphics.", e);
             }
         }
         
@@ -102,7 +102,7 @@ namespace DesktopDuplication
             {
                 _deskDupl.AcquireNextFrame(Timeout, out _frameInfo, out desktopResource);
             }
-            catch (SharpDXException e) when (e.ResultCode.Code == SharpDX.DXGI.ResultCode.WaitTimeout.Result.Code)
+            catch (SharpDXException e) when (e.Descriptor == SharpDX.DXGI.ResultCode.WaitTimeout)
             {
                 return _lastFrame ?? new Bitmap(_rect.Width, _rect.Height);
             }
@@ -140,7 +140,7 @@ namespace DesktopDuplication
             _lastFrame = new Bitmap(_rect.Width, _rect.Height, PixelFormat.Format32bppRgb);
 
             // Copy pixels from screen capture Texture to GDI bitmap
-            var mapDest = _lastFrame.LockBits(new DRectangle(0, 0, _rect.Width, _rect.Height), ImageLockMode.WriteOnly, _lastFrame.PixelFormat);
+            var mapDest = _lastFrame.LockBits(new Rectangle(0, 0, _rect.Width, _rect.Height), ImageLockMode.WriteOnly, _lastFrame.PixelFormat);
 
             Parallel.For(0, _rect.Height, y =>
             {
@@ -155,7 +155,7 @@ namespace DesktopDuplication
             if (_includeCursor && _frameInfo.PointerPosition.Visible)
             {
                 using (var g = Graphics.FromImage(_lastFrame))
-                    MouseCursor.Draw(g, P => new System.Drawing.Point(P.X - _rect.X, P.Y - _rect.Y));
+                    MouseCursor.Draw(g, P => new Point(P.X - _rect.X, P.Y - _rect.Y));
             }
 
             return _lastFrame;

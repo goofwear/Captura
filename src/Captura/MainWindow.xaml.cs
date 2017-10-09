@@ -58,8 +58,11 @@ namespace Captura
                     e.Cancel = true;
             };
 
-            if (DataContext is MainViewModel vm)
-                vm.Init(!App.CmdOptions.NoPersist, true, !App.CmdOptions.Reset, !App.CmdOptions.NoHotkeys);
+            Loaded += (s, e) =>
+            {
+                if (DataContext is MainViewModel vm)
+                    vm.Init(!App.CmdOptions.NoPersist, true, !App.CmdOptions.Reset, !App.CmdOptions.NoHotkeys);
+            };
         }
         
         void Grid_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -69,7 +72,7 @@ namespace Captura
             e.Handled = true;
         }
 
-        void MinButton_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+        void MinButton_Click(object sender, RoutedEventArgs e) => SystemCommands.MinimizeWindow(this);
 
         void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
 
@@ -104,12 +107,11 @@ namespace Captura
             }
 
             SystemTray.Dispose();
-            Application.Current.Shutdown();
 
             return true;
         }
 
-        void MenuExit_Click(object sender, RoutedEventArgs e) => TryExit();
+        void MenuExit_Click(object sender, RoutedEventArgs e) => Close();
 
         void HideButton_Click(object Sender, RoutedEventArgs E) => Hide();
     }

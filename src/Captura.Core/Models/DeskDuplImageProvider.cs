@@ -9,14 +9,16 @@ namespace Captura.Models
         DesktopDuplicator _dupl;
         readonly int _monitor;
         readonly bool _includeCursor;
+        readonly Rectangle _rectangle;
 
-        public DeskDuplImageProvider(int Monitor, bool IncludeCursor)
+        public DeskDuplImageProvider(int Monitor, Rectangle Rectangle, bool IncludeCursor)
         {
             _monitor = Monitor;
             _includeCursor = IncludeCursor;
+            _rectangle = Rectangle;
 
-            Width = WindowProvider.DesktopRectangle.Width;
-            Height = WindowProvider.DesktopRectangle.Height;
+            Width = Rectangle.Width;
+            Height = Rectangle.Height;
         }
         
         public int Height { get; }
@@ -25,18 +27,21 @@ namespace Captura.Models
 
         public Bitmap Capture()
         {
+            if (_dupl == null)
+                _dupl = new DesktopDuplicator(_rectangle, _includeCursor, _monitor);
+
             try
             {
                 return _dupl.Capture();
             }
             catch
             {
+                _dupl?.Dispose();
+
+                _dupl = new DesktopDuplicator(_rectangle, _includeCursor, _monitor);
+
                 try
                 {
-                    _dupl?.Dispose();
-
-                    _dupl = new DesktopDuplicator(WindowProvider.DesktopRectangle, _includeCursor, _monitor);
-
                     return _dupl.Capture();
                 }
                 catch

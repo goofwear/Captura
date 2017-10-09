@@ -250,7 +250,7 @@ namespace Captura.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to CornerRadius.
+        ///   Looks up a localized string similar to Corner Radius.
         /// </summary>
         public static string CornerRadius {
             get {
@@ -349,25 +349,16 @@ namespace Captura.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Flip Horizontal.
+        ///   Looks up a localized string similar to Flip.
         /// </summary>
-        public static string FlipX {
+        public static string Flip {
             get {
-                return ResourceManager.GetString("FlipX", resourceCulture);
+                return ResourceManager.GetString("Flip", resourceCulture);
             }
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Flip Vertical.
-        /// </summary>
-        public static string FlipY {
-            get {
-                return ResourceManager.GetString("FlipY", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to FontSize.
+        ///   Looks up a localized string similar to Font Size.
         /// </summary>
         public static string FontSize {
             get {
@@ -403,11 +394,29 @@ namespace Captura.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Help.
+        /// </summary>
+        public static string Help {
+            get {
+                return ResourceManager.GetString("Help", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Hide on Full Screen ScreenShot.
         /// </summary>
         public static string HideOnFullScreenShot {
             get {
                 return ResourceManager.GetString("HideOnFullScreenShot", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Horizontal.
+        /// </summary>
+        public static string Horizontal {
+            get {
+                return ResourceManager.GetString("Horizontal", resourceCulture);
             }
         }
         
@@ -646,11 +655,29 @@ namespace Captura.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to No Audio.
+        /// </summary>
+        public static string NoAudio {
+            get {
+                return ResourceManager.GetString("NoAudio", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Not Saved.
         /// </summary>
         public static string NotSaved {
             get {
                 return ResourceManager.GetString("NotSaved", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No Webcam.
+        /// </summary>
+        public static string NoWebcam {
+            get {
+                return ResourceManager.GetString("NoWebcam", resourceCulture);
             }
         }
         
@@ -1110,6 +1137,15 @@ namespace Captura.Properties {
         public static string VarFrameRate {
             get {
                 return ResourceManager.GetString("VarFrameRate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Vertical.
+        /// </summary>
+        public static string Vertical {
+            get {
+                return ResourceManager.GetString("Vertical", resourceCulture);
             }
         }
         

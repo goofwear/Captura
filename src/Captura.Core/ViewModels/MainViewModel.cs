@@ -65,6 +65,8 @@ namespace Captura.ViewModels
 
                 AudioViewModel.AudioSource.Refresh();
 
+                WebCamProvider.Refresh();
+
                 Status.LocalizationKey = nameof(Resources.Refreshed);
             });
             
@@ -382,8 +384,8 @@ namespace Captura.ViewModels
                         {
                             ServiceProvider.MainWindow.IsVisible = false;
 
-                            // Ensure that the ScreenShot Tooltip is hidden
-                            await Task.Delay(100);
+                            // Ensure that the Window is hidden
+                            await Task.Delay(300);
                         }
 
                         if (Settings.Instance.UseDeskDupl)
@@ -443,6 +445,34 @@ namespace Captura.ViewModels
                 FFMpegLog.Reset();
             }
 
+            if (VideoViewModel.SelectedVideoWriterKind == VideoWriterKind.Gif
+                && Settings.Instance.GifVariable
+                && Settings.Instance.UseDeskDupl)
+            {
+                ServiceProvider.MessageProvider.ShowError("Using Variable Frame Rate GIF with Desktop Duplication is not supported.");
+
+                return;
+            }
+
+            if (VideoViewModel.SelectedVideoWriterKind == VideoWriterKind.Gif)
+            {
+                if (AudioViewModel.AudioSource.SelectedLoopbackSource != NoSoundItem.Instance
+                    || AudioViewModel.AudioSource.SelectedRecordingSource != NoSoundItem.Instance)
+                {
+                    if (!ServiceProvider.MessageProvider.ShowYesNo("Audio won't be included in the recording.\nDo you want to record?", "Gif does not support Audio"))
+                    {
+                        return;
+                    }
+                }
+            }
+
+            if (Duration != 0 && (StartDelay > Duration * 1000))
+            {
+                ServiceProvider.MessageProvider.ShowError(Resources.DelayGtDuration);
+
+                return;
+            }
+
             ServiceProvider.RegionProvider.Lock();
 
             ServiceProvider.SystemTray.HideNotification();
@@ -451,16 +481,6 @@ namespace Captura.ViewModels
                 ServiceProvider.MainWindow.IsMinimized = true;
             
             Settings.Instance.EnsureOutPath();
-            
-            if (StartDelay < 0)
-                StartDelay = 0;
-
-            if (Duration != 0 && (StartDelay > Duration * 1000))
-            {
-                Status.LocalizationKey = nameof(Resources.DelayGtDuration);
-                SystemSounds.Asterisk.Play();
-                return;
-            }
 
             RecorderState = RecorderState.Recording;
             
@@ -516,7 +536,7 @@ namespace Captura.ViewModels
                         
             AfterRecording();
 
-            ServiceProvider.MessageProvider.ShowError($"{Resources.ErrorOccured}\n\n{E}");
+            ServiceProvider.MessageProvider.ShowError(E.ToString());
         }
 
         void AfterRecording()

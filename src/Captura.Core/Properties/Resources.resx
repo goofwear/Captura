@@ -327,12 +327,6 @@
   <data name="Screen" xml:space="preserve">
     <value>Screen</value>
   </data>
-  <data name="FlipX" xml:space="preserve">
-    <value>Flip Horizontal</value>
-  </data>
-  <data name="FlipY" xml:space="preserve">
-    <value>Flip Vertical</value>
-  </data>
   <data name="Rotate" xml:space="preserve">
     <value>Rotate</value>
   </data>
@@ -427,10 +421,10 @@
     <value>Color</value>
   </data>
   <data name="CornerRadius" xml:space="preserve">
-    <value>CornerRadius</value>
+    <value>Corner Radius</value>
   </data>
   <data name="FontSize" xml:space="preserve">
-    <value>FontSize</value>
+    <value>Font Size</value>
   </data>
   <data name="Keystrokes" xml:space="preserve">
     <value>Keystrokes</value>
@@ -503,5 +497,23 @@
   </data>
   <data name="UserName" xml:space="preserve">
     <value>User Name</value>
+  </data>
+  <data name="NoAudio" xml:space="preserve">
+    <value>No Audio</value>
+  </data>
+  <data name="NoWebcam" xml:space="preserve">
+    <value>No Webcam</value>
+  </data>
+  <data name="Flip" xml:space="preserve">
+    <value>Flip</value>
+  </data>
+  <data name="Help" xml:space="preserve">
+    <value>Help</value>
+  </data>
+  <data name="Horizontal" xml:space="preserve">
+    <value>Horizontal</value>
+  </data>
+  <data name="Vertical" xml:space="preserve">
+    <value>Vertical</value>
   </data>
 </root>
