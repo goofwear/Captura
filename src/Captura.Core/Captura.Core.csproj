@@ -88,6 +88,32 @@
     <Compile Include="Models\MouseKeyHook\IKeyRecord.cs" />
     <Compile Include="Models\MouseKeyHook\KeyRecords.cs" />
     <Compile Include="Models\MouseKeyHook\RepeatKeyRecord.cs" />
+    <Compile Include="Models\WebcamOverlay.cs" />
+    <Compile Include="Properties\Resources.cs.Designer.cs">
+      <DependentUpon>Resources.cs.resx</DependentUpon>
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+    </Compile>
+    <Compile Include="Properties\Resources.tr.Designer.cs">
+      <DependentUpon>Resources.tr.resx</DependentUpon>
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+    </Compile>
+    <Compile Include="Properties\Resources.ro.Designer.cs">
+      <DependentUpon>Resources.ro.resx</DependentUpon>
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+    </Compile>
+    <Compile Include="Properties\Resources.no.Designer.cs">
+      <DependentUpon>Resources.no.resx</DependentUpon>
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+    </Compile>
+    <Compile Include="Properties\Resources.is.Designer.cs">
+      <DependentUpon>Resources.is.resx</DependentUpon>
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+    </Compile>
     <Compile Include="Properties\Resources.da.Designer.cs">
       <DependentUpon>Resources.da.resx</DependentUpon>
       <AutoGen>True</AutoGen>
@@ -142,6 +168,11 @@
       <DependentUpon>Resources.pt.resx</DependentUpon>
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
+    </Compile>
+    <Compile Include="Properties\Resources.th.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Resources.th.resx</DependentUpon>
     </Compile>
     <Compile Include="Properties\Resources.uk.Designer.cs">
       <DependentUpon>Resources.uk.resx</DependentUpon>
@@ -213,6 +244,7 @@
     <Compile Include="Settings\ArraySettingsProvider.cs" />
     <Compile Include="Settings\Code.cs" />
     <Compile Include="Settings\JsonSettingsProvider.cs" />
+    <Compile Include="Settings\Webcam.cs" />
     <Compile Include="Settings\MouseKeyHook.cs" />
     <Compile Include="Settings\Proxy.cs" />
     <Compile Include="Settings\Remember.cs" />
@@ -241,6 +273,31 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Properties\Resources.cs.resx">
+      <Generator>PublicResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.cs.Designer.cs</LastGenOutput>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Properties\Resources.tr.resx">
+      <Generator>PublicResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.tr.Designer.cs</LastGenOutput>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Properties\Resources.ro.resx">
+      <Generator>PublicResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.ro.Designer.cs</LastGenOutput>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Properties\Resources.no.resx">
+      <Generator>PublicResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.no.Designer.cs</LastGenOutput>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Properties\Resources.is.resx">
+      <Generator>PublicResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.is.Designer.cs</LastGenOutput>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.da.resx">
       <Generator>PublicResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.da.Designer.cs</LastGenOutput>
@@ -295,6 +352,10 @@
       <Generator>PublicResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.pt.Designer.cs</LastGenOutput>
       <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Properties\Resources.th.resx">
+      <Generator>PublicResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.th.Designer.cs</LastGenOutput>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.uk.resx">
       <Generator>PublicResXFileCodeGenerator</Generator>

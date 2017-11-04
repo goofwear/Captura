@@ -6,7 +6,7 @@ namespace Captura
     class StaticRegionProvider : IImageProvider
     {
         readonly RegionSelector _selector;
-        readonly bool _includeCursor;
+        readonly RegionProvider _regionProvider;
 
         public StaticRegionProvider(RegionSelector RegionSelector, bool IncludeCursor)
         {
@@ -16,18 +16,23 @@ namespace Captura
             Height = rect.Height;
             Width = rect.Width;
 
-            _includeCursor = IncludeCursor;
+            _regionProvider = new RegionProvider(rect, IncludeCursor);
         }
         
         public Bitmap Capture()
         {
-            return ScreenShot.Capture(_selector.SelectedRegion.Even(), _includeCursor);
+            _regionProvider.UpdateLocation(_selector.SelectedRegion.Location);
+
+            return _regionProvider.Capture();
         }
 
         public int Height { get; }
 
         public int Width { get; }
 
-        public void Dispose() { }
+        public void Dispose()
+        {
+            _regionProvider.Dispose();
+        }
     }
 }

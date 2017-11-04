@@ -54,7 +54,7 @@ namespace Screna
             _sw = new Stopwatch();
             _frames = new BlockingCollection<Bitmap>();
 
-            _recordTask = Task.Factory.StartNew(DoRecord, TaskCreationOptions.LongRunning);
+            _recordTask = Task.Factory.StartNew(async () => await DoRecord(), TaskCreationOptions.LongRunning);
             _writeTask = Task.Factory.StartNew(DoWrite, TaskCreationOptions.LongRunning);
         }
 
@@ -91,46 +91,66 @@ namespace Screna
             }
         }
 
-        void DoRecord()
+        async Task DoRecord()
         {
             try
             {
                 var frameInterval = TimeSpan.FromSeconds(1.0 / _frameRate);
                 var frameCount = 0;
-                
-                while (_continueCapturing.WaitOne() && !_frames.IsAddingCompleted)
-                {
-                    var timestamp = DateTime.Now;
 
-                    var frame = _imageProvider.Capture();
-                    
+                Task<Bitmap> task = null;
+
+                // Returns false when stopped
+                bool AddFrame(Bitmap Frame)
+                {
                     try
                     {
-                        _frames.Add(frame);
+                        _frames.Add(Frame);
 
                         ++frameCount;
+
+                        return true;
                     }
                     catch (InvalidOperationException)
                     {
-                        return;
+                        return false;
                     }
+                }
 
-                    var requiredFrames = _sw.Elapsed.TotalSeconds * _frameRate;
-                    var diff = requiredFrames - frameCount;
-
-                    for (var i = 0; i < diff; ++i)
+                bool CanContinue()
+                {
+                    try
                     {
-                        try
-                        {
-                            _frames.Add(frame);
+                        return _continueCapturing.WaitOne();
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        return false;
+                    }
+                }
 
-                            ++frameCount;
-                        }
-                        catch (InvalidOperationException)
-                        {
+                while (CanContinue() && !_frames.IsAddingCompleted)
+                {
+                    var timestamp = DateTime.Now;
+
+                    if (task != null)
+                    {
+                        var frame = await task;
+
+                        if (!AddFrame(frame))
                             return;
+
+                        var requiredFrames = _sw.Elapsed.TotalSeconds * _frameRate;
+                        var diff = requiredFrames - frameCount;
+
+                        for (var i = 0; i < diff; ++i)
+                        {
+                            if (!AddFrame(frame))
+                                return;
                         }
                     }
+
+                    task = Task.Factory.StartNew(() => _imageProvider.Capture());
 
                     var timeTillNextFrame = timestamp + frameInterval - DateTime.Now;
 
@@ -174,7 +194,7 @@ namespace Screna
                 _videoWriter.Dispose();
                 _frames.Dispose();
 
-                _continueCapturing.Close();
+                _continueCapturing.Dispose();
             }
             else _audioWriter.Dispose();
 

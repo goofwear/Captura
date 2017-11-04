@@ -10,6 +10,9 @@
                 <local:ModernButton ToolTip="{local:Loc Refresh}"
                                     Command="{Binding RefreshCommand}"
                                     IconData="{StaticResource Icon_Refresh}"/>
+                <local:ModernButton ToolTip="Open Canvas"
+                                    Click="OpenCanvas"
+                                    IconData="{StaticResource Icon_Brush}"/>
                 <local:ModernButton ToolTip="{local:Loc OpenOutFolder}"
                                     Command="{Binding OpenOutputFolderCommand}"
                                     IconData="{StaticResource Icon_Folder}"/>
@@ -80,11 +83,16 @@
                   HorizontalAlignment="Center"
                   VerticalAlignment="Center"
                   ToolTip="{local:Loc WebCam}"/>
+            
+            <Button Content="Preview"
+                    DockPanel.Dock="Right"
+                    Click="Preview_Click"
+                    Padding="10,0"
+                    Margin="7,0"/>
 
             <ComboBox ItemsSource="{Binding WebCamProvider.AvailableCams}"
                       SelectedItem="{Binding WebCamProvider.SelectedCam, Mode=TwoWay}"
-                      DisplayMemberPath="Name"
-                      Margin="0,0,7,0"/>
+                      DisplayMemberPath="Name"/>
         </DockPanel>
 
         <Grid Margin="0,5">
@@ -120,13 +128,13 @@
         <DockPanel Margin="10,5,0,5"
                    IsEnabled="{Binding RecorderState, Converter={StaticResource NotRecordingConverter}}">
             <Label Content="{local:Loc FrameRate}"
-                   ContentStringFormat="{}{0}:"                   />
+                   ContentStringFormat="{}{0}:"/>
             <Label Content="{local:Setting FrameRate, StringFormat={}{0:N0}}"
                    Margin="5,0"
                    MinWidth="15"
                    HorizontalContentAlignment="Right"/>
             <Slider Minimum="1"
-                    Maximum="30" 
+                    Maximum="30"
                     SelectionStart="8"
                     SelectionEnd="12"
                     IsSelectionRangeEnabled="True"
