@@ -2,20 +2,15 @@
 
 namespace Captura
 {
-    public abstract class CommonCmdOptions : CmdOptionsBase
+    abstract class CommonCmdOptions
     {
-        protected CommonCmdOptions()
-        {
-            Settings.Instance.IncludeCursor = false;
-        }
-        
-        [Option("cursor", DefaultValue = false, HelpText = "Include Cursor in Recording.")]
+        [Option("cursor", HelpText = "Include Cursor in Recording (default = false).")]
         public bool Cursor { get; set; }
 
-        [Option("source", DefaultValue = null, HelpText = "Video source")]
+        [Option("source", HelpText = "Video source")]
         public string Source { get; set; }
 
-        [Option('f', "file", DefaultValue = null, HelpText = "Output file path")]
+        [Option('f', "file", HelpText = "Output file path")]
         public string FileName { get; set; }
     }
 }

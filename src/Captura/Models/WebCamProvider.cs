@@ -5,16 +5,21 @@ using Captura.Webcam;
 
 namespace Captura.Models
 {
+    // ReSharper disable once ClassNeverInstantiated.Global
     public class WebCamProvider : NotifyPropertyChanged, IWebCamProvider
     {
         public WebCamProvider()
         {
+            AvailableCams = new ReadOnlyObservableCollection<IWebcamItem>(_cams);
+
             _camControl = WebCamWindow.Instance.GetWebCamControl();
             
             Refresh();
         }
         
-        public ObservableCollection<IWebcamItem> AvailableCams { get; } = new ObservableCollection<IWebcamItem>();
+        readonly ObservableCollection<IWebcamItem> _cams = new ObservableCollection<IWebcamItem>();
+
+        public ReadOnlyObservableCollection<IWebcamItem> AvailableCams { get; }
 
         readonly WebcamControl _camControl;
 
@@ -48,7 +53,7 @@ namespace Captura.Models
                     }
                     catch (Exception e)
                     {
-                        ServiceProvider.MessageProvider.ShowError($"Could not Start Webcam.\n\n\n{e}");
+                        ServiceProvider.MessageProvider.ShowException(e, "Could not Start Webcam");
                     }
                 }
 
@@ -58,15 +63,15 @@ namespace Captura.Models
         
         public void Refresh()
         {
-            AvailableCams.Clear();
+            _cams.Clear();
 
-            AvailableCams.Add(WebcamItem.NoWebcam);
+            _cams.Add(WebcamItem.NoWebcam);
 
             if (_camControl == null)
                 return;
 
             foreach (var cam in CaptureWebcam.VideoInputDevices)
-                AvailableCams.Add(new WebcamItem(cam));
+                _cams.Add(new WebcamItem(cam));
 
             SelectedCam = WebcamItem.NoWebcam;
         }
@@ -75,9 +80,13 @@ namespace Captura.Models
         {
             try
             {
-                return _camControl.Dispatcher.Invoke(() => _camControl.Capture.GetFrame());
+                return _camControl.Dispatcher.Invoke(() => _camControl.Capture?.GetFrame());
             }
             catch { return null; }
         }
+
+        public int Width => _camControl.Dispatcher.Invoke(() => _camControl.Capture.Size.Width);
+
+        public int Height => _camControl.Dispatcher.Invoke(() => _camControl.Capture.Size.Height);
     }
 }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Drawing;
+using Captura;
 
 namespace Screna
 {
@@ -20,61 +21,44 @@ namespace Screna
         /// <param name="Transform">Point Transform Function.</param>
         public OverlayedImageProvider(IImageProvider ImageProvider, Func<Point, Point> Transform, params IOverlay[] Overlays)
         {
-            _imageProvider = ImageProvider;
-            _overlays = Overlays;
-            _transform = Transform;
+            _imageProvider = ImageProvider ?? throw new ArgumentNullException(nameof(ImageProvider));
+            _overlays = Overlays ?? throw new ArgumentNullException(nameof(Overlays));
+            _transform = Transform ?? throw new ArgumentNullException(nameof(Transform));
 
             Width = ImageProvider.Width;
             Height = ImageProvider.Height;
         }
 
-        int lastFrameHash;
-
-        /// <summary>
-        /// Captures an Image.
-        /// </summary>
-        public Bitmap Capture()
+        /// <inheritdoc />
+        public IBitmapFrame Capture()
         {
             var bmp = _imageProvider.Capture();
             
-            var hash = bmp.GetHashCode();
-
-            if (lastFrameHash == hash)
+            // Overlays should have already been drawn on previous frame
+            if (bmp is RepeatFrame)
             {
                 return bmp;
             }
-
-            lastFrameHash = hash;
-
-            using (var g = Graphics.FromImage(bmp))
+            
+            using (var editor = bmp.GetEditor())
             {
-                if (_overlays != null)
-                    foreach (var overlay in _overlays)
-                        overlay?.Draw(g, _transform);
+                foreach (var overlay in _overlays)
+                    overlay?.Draw(editor, _transform);
             }
 
             return bmp;
         }
         
-        /// <summary>
-        /// Height of Captured image.
-        /// </summary>
+        /// <inheritdoc />
         public int Height { get; }
 
-        /// <summary>
-        /// Width of Captured image.
-        /// </summary>
+        /// <inheritdoc />
         public int Width { get; }
 
-        /// <summary>
-        /// Frees all resources used by this instance.
-        /// </summary>
-        public virtual void Dispose()
+        /// <inheritdoc />
+        public void Dispose()
         {
             _imageProvider.Dispose();
-
-            if (_overlays == null)
-                return;
 
             foreach (var overlay in _overlays)
                 overlay?.Dispose();

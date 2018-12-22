@@ -1,28 +1,29 @@
 ﻿using System;
 using System.Drawing;
-using System.Drawing.Drawing2D;
+using System.Windows.Forms;
+using Captura;
+using Captura.Models;
+using Captura.Native;
 
 namespace Screna
 {
     /// <summary>
     /// Captures the specified window.
     /// </summary>
-    public class WindowProvider : ImageProviderBase
+    public class WindowProvider : IImageProvider
     {
         /// <summary>
         /// A <see cref="Rectangle"/> representing the entire Desktop.
         /// </summary>
-        public static Rectangle DesktopRectangle { get; }
+        public static Rectangle DesktopRectangle => SystemInformation.VirtualScreen;
 
-        static WindowProvider()
-        {
-            DesktopRectangle = System.Windows.Forms.SystemInformation.VirtualScreen;
-        }
+        readonly IWindow _window;
+        readonly Func<Point, Point> _transform;
+        readonly bool _includeCursor;
 
-        readonly Window _window;
-        readonly Color _backgroundColor;
+        readonly IntPtr _hdcSrc, _hdcDest, _hBitmap;
 
-        static Func<Point, Point> GetTransformer(Window Window)
+        static Func<Point, Point> GetTransformer(IWindow Window)
         {
             var initialSize = Window.Rectangle.Even().Size;
 
@@ -39,58 +40,102 @@ namespace Screna
         /// <summary>
         /// Creates a new instance of <see cref="WindowProvider"/>.
         /// </summary>
-        /// <param name="Window">The Window to Capture.</param>
-        /// <param name="BackgroundColor"><see cref="Color"/> to fill blank background.</param>
-        public WindowProvider(Window Window, bool IncludeCursor, Color BackgroundColor, out Func<Point, Point> Transform)
-            : base(Window.Rectangle.Even().Size, GetTransformer(Window), IncludeCursor)
+        public WindowProvider(IWindow Window, bool IncludeCursor, out Func<Point, Point> Transform)
         {
-            _window = Window;
-            _backgroundColor = BackgroundColor;
+            _window = Window ?? throw new ArgumentNullException(nameof(Window));
+            _includeCursor = IncludeCursor;
 
-            Transform = _transform;
+            var size = Window.Rectangle.Even().Size;
+            Width = size.Width;
+            Height = size.Height;
+
+            Transform = _transform = GetTransformer(Window);
+
+            _hdcSrc = User32.GetDC(IntPtr.Zero);
+
+            _hdcDest = Gdi32.CreateCompatibleDC(_hdcSrc);
+            _hBitmap = Gdi32.CreateCompatibleBitmap(_hdcSrc, Width, Height);
+
+            Gdi32.SelectObject(_hdcDest, _hBitmap);
+        }
+
+        void OnCapture()
+        {
+            if (!_window.IsAlive)
+            {
+                throw new WindowClosedException();
+            }
+
+            var rect = _window.Rectangle.Even();
+            var ratio = Math.Min((float) Width / rect.Width, (float) Height / rect.Height);
+
+            var resizeWidth = (int) (rect.Width * ratio);
+            var resizeHeight = (int) (rect.Height * ratio);
+
+            void ClearRect(RECT Rect)
+            {
+                User32.FillRect(_hdcDest, ref Rect, IntPtr.Zero);
+            }
+
+            if (Width != resizeWidth)
+            {
+                ClearRect(new RECT
+                {
+                    Left = resizeWidth,
+                    Right = Width,
+                    Bottom = Height
+                });
+            }
+            else if (Height != resizeHeight)
+            {
+                ClearRect(new RECT
+                {
+                    Top = resizeHeight,
+                    Right = Width,
+                    Bottom = Height
+                });
+            }
+
+            Gdi32.StretchBlt(_hdcDest, 0, 0, resizeWidth, resizeHeight,
+                _hdcSrc, rect.X, rect.Y, rect.Width, rect.Height,
+                (int) CopyPixelOperation.SourceCopy);
+        }
+
+        public IBitmapFrame Capture()
+        {
+            try
+            {
+                OnCapture();
+
+                var img = new OneTimeFrame(Image.FromHbitmap(_hBitmap));
+
+                if (_includeCursor)
+                    using (var editor = img.GetEditor())
+                        MouseCursor.Draw(editor.Graphics, _transform);
+
+                return img;
+            }
+            catch (Exception e) when (!(e is WindowClosedException))
+            {
+                return RepeatFrame.Instance;
+            }
         }
 
         /// <summary>
-        /// Capture Image.
+        /// Height of Captured image.
         /// </summary>
-        protected override void OnCapture(Graphics g)
+        public int Height { get; }
+
+        /// <summary>
+        /// Width of Captured image.
+        /// </summary>
+        public int Width { get; }
+
+        public void Dispose()
         {
-            var rect = _window.Rectangle;
-            
-            if (rect.Width == Width && rect.Height == Height)
-            {
-                g.CopyFromScreen(rect.Location,
-                    Point.Empty,
-                    rect.Size,
-                    CopyPixelOperation.SourceCopy);
-            }
-            else // Scale to fit
-            {
-                var capture = new Bitmap(rect.Width, rect.Height);
-
-                using (var gcapture = Graphics.FromImage(capture))
-                {
-                    gcapture.CopyFromScreen(rect.Location,
-                        Point.Empty,
-                        rect.Size,
-                        CopyPixelOperation.SourceCopy);
-                }
-
-                g.CompositingQuality = CompositingQuality.HighQuality;
-                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                g.SmoothingMode = SmoothingMode.HighQuality;
-                
-                if (_backgroundColor != Color.Transparent)
-                    g.FillRectangle(new SolidBrush(_backgroundColor), 0, 0, Width, Height);
-
-                var ratio = Math.Min((float)Width / rect.Width, (float)Height / rect.Height);
-
-                var resizeWidth = rect.Width * ratio;
-                var resizeHeight = rect.Height * ratio;
-
-                using (capture)
-                    g.DrawImage(capture, 0, 0, resizeWidth, resizeHeight);
-            }
+            Gdi32.DeleteDC(_hdcDest);
+            User32.ReleaseDC(IntPtr.Zero, _hdcSrc);
+            Gdi32.DeleteObject(_hBitmap);
         }
     }
 }

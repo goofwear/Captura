@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
+using DirectShowLib;
+
+// ReSharper disable SuspiciousTypeConversion.Global
 
 namespace Captura.Webcam
 {
@@ -27,16 +30,7 @@ namespace Captura.Webcam
         /// <summary>
         /// The Width and Height of the video feed.
         /// </summary>
-        public Size Size
-        {
-            get
-            {
-                if (_videoInfoHeader != null)
-                    return new Size(_videoInfoHeader.BmiHeader.Width, _videoInfoHeader.BmiHeader.Height);
-
-                return Size.Empty;
-            }
-        }
+        public Size Size => _videoInfoHeader != null ? new Size(_videoInfoHeader.BmiHeader.Width, _videoInfoHeader.BmiHeader.Height) : Size.Empty;
 
         /// <summary>
         /// The Scale of the video feed.
@@ -75,9 +69,9 @@ namespace Captura.Webcam
         /// </summary>
         IBaseFilter _videoDeviceFilter;
 
-        /// <summary>
-        /// DShow Filter: configure frame rate, size.
-        /// </summary>
+        ///// <summary>
+        ///// DShow Filter: configure frame rate, size.
+        ///// </summary>
         //IAMStreamConfig VideoStreamConfig;
 
         /// <summary>
@@ -106,16 +100,20 @@ namespace Captura.Webcam
         VideoInfoHeader _videoInfoHeader;
         #endregion
 
-        const int OATRUE = -1;
-        const int OAFALSE = 0;
+        readonly DummyForm _form;
 
         /// <summary>
         /// Default constructor of the Capture class.
         /// </summary>
         /// <param name="VideoDevice">The video device to be the source.</param>
         /// <exception cref="ArgumentException">If no video device is provided.</exception>
-        public CaptureWebcam(Filter VideoDevice)
+        public CaptureWebcam(Filter VideoDevice, Action OnClick)
         {
+            _form = new DummyForm();
+            _form.Show();
+
+            _form.Click += (S, E) => OnClick?.Invoke();
+
             this.VideoDevice = VideoDevice ?? throw new ArgumentException("The videoDevice parameter must be set to a valid Filter.\n");
 
             CreateGraph();
@@ -129,7 +127,7 @@ namespace Captura.Webcam
         {
             DerenderGraph();
 
-            _wantPreviewRendered = PreviewWindow != null && VideoDevice != null;
+            _wantPreviewRendered = PreviewWindow != IntPtr.Zero && VideoDevice != null;
 
             RenderGraph();
             StartPreviewIfNeeded();
@@ -157,6 +155,8 @@ namespace Captura.Webcam
 
             try { DestroyGraph(); }
             catch { }
+
+            _form.Dispose();
         }
         #endregion
 
@@ -172,21 +172,16 @@ namespace Captura.Webcam
             if ((int)_actualGraphState < (int)GraphState.Created)
             {
                 // Make a new filter graph
-                _graphBuilder = (IGraphBuilder)Activator.CreateInstance(Type.GetTypeFromCLSID(Uuid.Clsid.FilterGraph, true));
+                _graphBuilder = (IGraphBuilder)new FilterGraph();
 
                 // Get the Capture Graph Builder
-                var clsid = Uuid.Clsid.CaptureGraphBuilder2;
-                var riid = typeof(ICaptureGraphBuilder2).GUID;
-                _captureGraphBuilder = (ICaptureGraphBuilder2)Workaround.CreateDsInstance(ref clsid, ref riid);
+                _captureGraphBuilder = (ICaptureGraphBuilder2)new CaptureGraphBuilder2();
 
                 // Link the CaptureGraphBuilder to the filter graph
                 var hr = _captureGraphBuilder.SetFiltergraph(_graphBuilder);
                 if (hr < 0) Marshal.ThrowExceptionForHR(hr);
 
-                var comType = Type.GetTypeFromCLSID(Uuid.Clsid.SampleGrabber);
-                if (comType == null)
-                    throw new NotImplementedException(@"DirectShow SampleGrabber not installed/registered!");
-                var comObj = Activator.CreateInstance(comType);
+                var comObj = new SampleGrabber();
                 _sampGrabber = (ISampleGrabber)comObj;
 
                 _baseGrabFlt = (IBaseFilter)_sampGrabber;
@@ -200,9 +195,9 @@ namespace Captura.Webcam
                     hr = _graphBuilder.AddFilter(_videoDeviceFilter, "Video Capture Device");
                     if (hr < 0) Marshal.ThrowExceptionForHR(hr);
 
-                    media.majorType = Uuid.MediaType.Video;
-                    media.subType = Uuid.MediaSubType.Rgb32;//RGB24;
-                    media.formatType = Uuid.FormatType.VideoInfo;
+                    media.majorType = MediaType.Video;
+                    media.subType = MediaSubType.RGB32;//RGB24;
+                    media.formatType = FormatType.VideoInfo;
                     media.temporalCompression = true; //New
 
                     hr = _sampGrabber.SetMediaType(media);
@@ -220,18 +215,19 @@ namespace Captura.Webcam
                 // upstream filters to function).
 
                 // Try looking for an interleaved media type
-                var cat = Uuid.PinCategory.Capture;
-                var med = Uuid.MediaType.Interleaved;
+                var cat = PinCategory.Capture;
+                var med = MediaType.Interleaved;
                 var iid = typeof(IAMStreamConfig).GUID;
-                hr = _captureGraphBuilder.FindInterface(ref cat, ref med, _videoDeviceFilter, ref iid, out object o);
+                hr = _captureGraphBuilder.FindInterface(cat, med, _videoDeviceFilter, iid, out var o);
 
                 if (hr != 0)
                 {
                     // If not found, try looking for a video media type
-                    med = Uuid.MediaType.Video;
-                    hr = _captureGraphBuilder.FindInterface(ref cat, ref med, _videoDeviceFilter, ref iid, out o);
+                    med = MediaType.Video;
+                    hr = _captureGraphBuilder.FindInterface(cat, med, _videoDeviceFilter, iid, out o);
 
                     if (hr != 0)
+                        // ReSharper disable once RedundantAssignment
                         o = null;
                 }
 
@@ -277,23 +273,23 @@ namespace Captura.Webcam
             // Free the preview window (ignore errors)
             if (_videoWindow != null)
             {
-                _videoWindow.put_Visible(OAFALSE);
+                _videoWindow.put_Visible(OABool.False);
                 _videoWindow.put_Owner(IntPtr.Zero);
                 _videoWindow = null;
             }
 
-            if ((int)_actualGraphState >= (int)GraphState.Rendered)
-            {
-                // Update the state
-                _actualGraphState = GraphState.Created;
-                _isPreviewRendered = false;
+            if ((int) _actualGraphState < (int) GraphState.Rendered)
+                return;
 
-                // Disconnect all filters downstream of the 
-                // video and audio devices. If we have a compressor
-                // then disconnect it, but don't remove it
-                if (_videoDeviceFilter != null)
-                    RemoveDownstream(_videoDeviceFilter);
-            }
+            // Update the state
+            _actualGraphState = GraphState.Created;
+            _isPreviewRendered = false;
+
+            // Disconnect all filters downstream of the 
+            // video and audio devices. If we have a compressor
+            // then disconnect it, but don't remove it
+            if (_videoDeviceFilter != null)
+                RemoveDownstream(_videoDeviceFilter);
         }
 
         /// <summary>
@@ -303,60 +299,62 @@ namespace Captura.Webcam
         ///  "removeFirstFilter" is used to keep a compressor (that should
         ///  be immediately downstream of the device) if one is begin used.
         /// </summary>
-        void RemoveDownstream(IBaseFilter filter)
+        void RemoveDownstream(IBaseFilter Filter)
         {
             // Get a pin enumerator off the filter
-            var hr = filter.EnumPins(out IEnumPins pinEnum);
+            var hr = Filter.EnumPins(out var pinEnum);
 
             if (pinEnum == null)
                 return;
 
             pinEnum.Reset();
 
-            if (hr == 0)
+            if (hr != 0)
+                return;
+
+            // Loop through each pin
+            var pins = new IPin[1];
+
+            do
             {
-                // Loop through each pin
-                var pins = new IPin[1];
-                do
+                // Get the next pin
+                hr = pinEnum.Next(1, pins, IntPtr.Zero);
+
+                if (hr != 0 || pins[0] == null)
+                    continue;
+
+                // Get the pin it is connected to
+                pins[0].ConnectedTo(out var pinTo);
+
+                if (pinTo != null)
                 {
-                    // Get the next pin
-                    hr = pinEnum.Next(1, pins, out int _);
+                    // Is this an input pin?
+                    hr = pinTo.QueryPinInfo(out var info);
 
-                    if (hr == 0 && pins[0] != null)
+                    if (hr == 0 && info.dir == PinDirection.Input)
                     {
-                        // Get the pin it is connected to
-                        pins[0].ConnectedTo(out IPin pinTo);
+                        // Recurse down this branch
+                        RemoveDownstream(info.filter);
 
-                        if (pinTo != null)
-                        {
-                            // Is this an input pin?
-                            hr = pinTo.QueryPinInfo(out PinInfo info);
+                        // Disconnect 
+                        _graphBuilder.Disconnect(pinTo);
+                        _graphBuilder.Disconnect(pins[0]);
 
-                            if (hr == 0 && info.dir == PinDirection.Input)
-                            {
-                                // Recurse down this branch
-                                RemoveDownstream(info.filter);
-
-                                // Disconnect 
-                                _graphBuilder.Disconnect(pinTo);
-                                _graphBuilder.Disconnect(pins[0]);
-
-                                // Remove this filter
-                                // but don't remove the video or audio compressors
-                                if (info.filter != _videoCompressorFilter)
-                                    _graphBuilder.RemoveFilter(info.filter);
-                            }
-
-                            Marshal.ReleaseComObject(info.filter);
-                            Marshal.ReleaseComObject(pinTo);
-                        }
-
-                        Marshal.ReleaseComObject(pins[0]);
+                        // Remove this filter
+                        // but don't remove the video or audio compressors
+                        if (info.filter != _videoCompressorFilter)
+                            _graphBuilder.RemoveFilter(info.filter);
                     }
-                } while (hr == 0);
 
-                Marshal.ReleaseComObject(pinEnum);
+                    Marshal.ReleaseComObject(info.filter);
+                    Marshal.ReleaseComObject(pinTo);
+                }
+
+                Marshal.ReleaseComObject(pins[0]);
             }
+            while (hr == 0);
+
+            Marshal.ReleaseComObject(pinEnum);
         }
 
         /// <summary>
@@ -368,9 +366,6 @@ namespace Captura.Webcam
         void RenderGraph()
         {
             var didSomething = false;
-            const int WS_CHILD = 0x40000000;
-            const int WS_CLIPCHILDREN = 0x02000000;
-            const int WS_CLIPSIBLINGS = 0x04000000;
 
             // Stop the graph
             _mediaControl?.Stop();
@@ -392,9 +387,9 @@ namespace Captura.Webcam
             if (_wantPreviewRendered && !_isPreviewRendered)
             {
                 // Render preview (video -> renderer)
-                var cat = Uuid.PinCategory.Preview;
-                var med = Uuid.MediaType.Video;
-                var hr = _captureGraphBuilder.RenderStream(ref cat, ref med, _videoDeviceFilter, _baseGrabFlt, null);
+                var cat = PinCategory.Preview;
+                var med = MediaType.Video;
+                var hr = _captureGraphBuilder.RenderStream(cat, med, _videoDeviceFilter, _baseGrabFlt, null);
                 if (hr < 0) Marshal.ThrowExceptionForHR(hr);
 
                 // Get the IVideoWindow interface
@@ -403,17 +398,19 @@ namespace Captura.Webcam
                 // Set the video window to be a child of the main window
                 hr = _videoWindow.put_Owner(PreviewWindow);
 
+                _videoWindow.put_MessageDrain(_form.Handle);
+
                 if (hr < 0)
                     Marshal.ThrowExceptionForHR(hr);
 
                 // Set video window style
-                hr = _videoWindow.put_WindowStyle(WS_CHILD | WS_CLIPCHILDREN | WS_CLIPSIBLINGS);
+                hr = _videoWindow.put_WindowStyle(WindowStyle.Child | WindowStyle.ClipChildren | WindowStyle.ClipSiblings);
 
                 if (hr < 0)
                     Marshal.ThrowExceptionForHR(hr);
 
                 // Make the video window visible, now that it is properly positioned
-                hr = _videoWindow.put_Visible(OATRUE);
+                hr = _videoWindow.put_Visible(OABool.True);
 
                 if (hr < 0)
                     Marshal.ThrowExceptionForHR(hr);
@@ -427,7 +424,7 @@ namespace Captura.Webcam
                 if (hr < 0)
                     Marshal.ThrowExceptionForHR(hr);
 
-                if (media.formatType != Uuid.FormatType.VideoInfo || media.formatPtr == IntPtr.Zero)
+                if (media.formatType != FormatType.VideoInfo || media.formatPtr == IntPtr.Zero)
                     throw new NotSupportedException("Unknown Grabber Media Format");
 
                 _videoInfoHeader = (VideoInfoHeader)Marshal.PtrToStructure(media.formatPtr, typeof(VideoInfoHeader));
@@ -519,9 +516,9 @@ namespace Captura.Webcam
         #endregion
 
         #region SampleGrabber
-        int ISampleGrabberCB.SampleCB(double sampleTime, IMediaSample pSample) => 0;
+        int ISampleGrabberCB.SampleCB(double SampleTime, IMediaSample Sample) => 0;
 
-        public int BufferCB(double sampleTime, IntPtr pBuffer, int bufferLen) => 1;
+        public int BufferCB(double SampleTime, IntPtr Buffer, int BufferLen) => 1;
         
         /// <summary>
         /// Gets the current frame from the buffer.
@@ -536,6 +533,11 @@ namespace Captura.Webcam
             var bufferSize = 0;
             _sampGrabber.GetCurrentBuffer(ref bufferSize, IntPtr.Zero);
 
+            if (bufferSize <= 0)
+            {
+                return null;
+            }
+
             if (_savedArray == null || _savedArray.Length < bufferSize)
                 _savedArray = new byte[bufferSize + 64000];
             
@@ -545,20 +547,26 @@ namespace Captura.Webcam
             //Gets the addres of the pinned object.
             var address = handleObj.AddrOfPinnedObject();
 
-            //Puts the buffer inside the byte array.
-            _sampGrabber.GetCurrentBuffer(ref bufferSize, address);
+            try
+            {
+                //Puts the buffer inside the byte array.
+                _sampGrabber.GetCurrentBuffer(ref bufferSize, address);
 
-            //Image size.
-            var width = _videoInfoHeader.BmiHeader.Width;
-            var height = _videoInfoHeader.BmiHeader.Height;
+                //Image size.
+                var width = _videoInfoHeader.BmiHeader.Width;
+                var height = _videoInfoHeader.BmiHeader.Height;
 
-            var stride = width * 4;
-            address += height * stride;
+                var stride = width * 4;
+                address += height * stride;
 
-            var bitmap = new Bitmap(width, height, -stride, System.Drawing.Imaging.PixelFormat.Format32bppRgb, address);
-            handleObj.Free();
-
-            return bitmap;
+                return new Bitmap(width, height, -stride,
+                    System.Drawing.Imaging.PixelFormat.Format32bppRgb,
+                    address);
+            }
+            finally
+            {
+                handleObj.Free();
+            }
         }
         #endregion
 
@@ -573,16 +581,13 @@ namespace Captura.Webcam
                 try
                 {
                     // Get the system device enumerator
-                    var srvType = Type.GetTypeFromCLSID(Uuid.Clsid.SystemDeviceEnum);
-                    if (srvType == null)
-                        throw new NotImplementedException("System Device Enumerator");
-                    comObj = Activator.CreateInstance(srvType);
+                    comObj = new CreateDevEnum();
                     var enumDev = (ICreateDevEnum)comObj;
 
-                    var category = Uuid.FilterCategory.VideoInputDevice;
+                    var category = FilterCategory.VideoInputDevice;
 
                     // Create an enumerator to find filters in category
-                    var hr = enumDev.CreateClassEnumerator(ref category, out enumMon, 0);
+                    var hr = enumDev.CreateClassEnumerator(category, out enumMon, 0);
                     if (hr != 0)
                         yield break;
 

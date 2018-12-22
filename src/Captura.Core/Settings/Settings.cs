@@ -1,291 +1,204 @@
-﻿using Captura.Models;
-using System.Collections.Generic;
-using System.Configuration;
+﻿using System;
+using System.Collections.ObjectModel;
 using System.Drawing;
+using System.IO;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
+using Newtonsoft.Json.Linq;
+using System.Linq;
+using Captura.Models;
 
 namespace Captura
 {
-    public partial class Settings
+    public class Settings : PropertyStore
     {
-        [UserScopedSetting]
-        [DefaultSettingValue("False")]
-        public bool DarkTheme
+        static Settings()
         {
-            get => Get<bool>();
+            JsonConvert.DefaultSettings = () => new JsonSerializerSettings
+            {
+                Formatting = Formatting.Indented,
+                NullValueHandling = NullValueHandling.Ignore,
+                Converters = new JsonConverter[]
+                {
+                    new StringEnumConverter
+                    {
+                        AllowIntegerValues = false
+                    }
+                }
+            };
+        }
+
+        static string GetPath() => Path.Combine(ServiceProvider.SettingsDir, "Captura.json");
+
+        public bool Load()
+        {
+            try
+            {
+                var json = File.ReadAllText(GetPath());
+
+                JsonConvert.PopulateObject(json, this);
+
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public bool Save()
+        {
+            try
+            {
+                var sortedProperties = JObject.FromObject(this).Properties().OrderBy(J => J.Name);
+
+                var jobj = new JObject(sortedProperties.Cast<object>().ToArray());
+
+                File.WriteAllText(GetPath(), jobj.ToString());
+
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public void EnsureOutPath()
+        {
+            if (!Directory.Exists(OutPath))
+                Directory.CreateDirectory(OutPath);
+        }
+
+        public ProxySettings Proxy { get; } = new ProxySettings();
+
+        public ImgurSettings Imgur { get; } = new ImgurSettings();
+
+        public WebcamOverlaySettings WebcamOverlay { get; set; } = new WebcamOverlaySettings();
+
+        public MouseOverlaySettings MousePointerOverlay { get; set; } = new MouseOverlaySettings
+        {
+            Color = Color.FromArgb(200, 239, 108, 0)
+        };
+
+        public MouseClickSettings Clicks { get; set; } = new MouseClickSettings();
+        
+        public KeystrokesSettings Keystrokes { get; set; } = new KeystrokesSettings();
+
+        public TextOverlaySettings Elapsed { get; set; } = new TextOverlaySettings();
+
+        public ObservableCollection<CensorOverlaySettings> Censored { get; } = new ObservableCollection<CensorOverlaySettings>();
+        
+        public VisualSettings UI { get; } = new VisualSettings();
+
+        public ScreenShotSettings ScreenShots { get; } = new ScreenShotSettings();
+
+        public VideoSettings Video { get; } = new VideoSettings();
+
+        public AudioSettings Audio { get; } = new AudioSettings();
+
+        public FFmpegSettings FFmpeg { get; } = new FFmpegSettings();
+
+        public GifSettings Gif { get; } = new GifSettings();
+
+        public ObservableCollection<CustomOverlaySettings> TextOverlays { get; } = new ObservableCollection<CustomOverlaySettings>();
+
+        public ObservableCollection<CustomImageOverlaySettings> ImageOverlays { get; } = new ObservableCollection<CustomImageOverlaySettings>();
+
+        public SoundSettings Sounds { get; } = new SoundSettings();
+
+        public ImageEditorSettings ImageEditor { get; } = new ImageEditorSettings();
+
+        public TraySettings Tray { get; } = new TraySettings();
+
+        public int PreStartCountdown
+        {
+            get => Get(0);
             set => Set(value);
         }
 
-        [UserScopedSetting]
-        [DefaultSettingValue("True")]
-        public bool HideOnFullScreenShot
+        public int Duration
         {
-            get => Get<bool>();
+            get => Get(0);
             set => Set(value);
         }
 
-        [UserScopedSetting]
-        [DefaultSettingValue("False")]
-        public bool UseDeskDupl
-        {
-            get => Get<bool>();
-            set => Set(value);
-        }
-
-        [UserScopedSetting]
-        [DefaultSettingValue("False")]
-        public bool MainWindowTopmost
-        {
-            get => Get<bool>();
-            set => Set(value);
-        }
-
-        [UserScopedSetting]
-        [DefaultSettingValue("False")]
         public bool CopyOutPathToClipboard
         {
             get => Get<bool>();
             set => Set(value);
         }
-
-        [UserScopedSetting]
-        [DefaultSettingValue(null)]
-        public string AccentColor
-        {
-            get => Get<string>();
-            set => Set(value);
-        }
-
-        [UserScopedSetting]
-        [DefaultSettingValue("50")]
-        public int MainWindowLeft
-        {
-            get => Get<int>();
-            set => Set(value);
-        }
-
-        [UserScopedSetting]
-        [DefaultSettingValue("50")]
-        public int MainWindowTop
-        {
-            get => Get<int>();
-            set => Set(value);
-        }
-
-        [UserScopedSetting]
-        [DefaultSettingValue("True")]
-        public bool Expanded
-        {
-            get => Get<bool>();
-            set => Set(value);
-        }
-
-        [SettingsProvider(typeof(ArraySettingsProvider))]
-        [UserScopedSetting]
-        public List<RecentItemModel> RecentItems
-        {
-            get => Get<List<RecentItemModel>>();
-            set => Set(value);
-        }
         
-        [UserScopedSetting]
-        [DefaultSettingValue("30")]
         public int RecentMax
         {
-            get => Get<int>();
+            get => Get(30);
             set => Set(value);
         }
-        
-        [UserScopedSetting]
+
         public string OutPath
         {
             get => Get<string>();
             set => Set(value);
         }
-        
-        [UserScopedSetting]
-        public string FFMpegFolder
+
+        public string FilenameFormat
         {
-            get => Get<string>();
+            get => Get("%yyyy%-%MM%-%dd%-%HH%-%mm%-%ss%");
             set => Set(value);
         }
 
-        [UserScopedSetting]
-        [DefaultSettingValue("True")]
+        public string GetFileName(string Extension, string FileName = null)
+        {
+            if (FileName != null)
+                return FileName;
+
+            if (!Extension.StartsWith("."))
+                Extension = $".{Extension}";
+
+            if (string.IsNullOrWhiteSpace(FilenameFormat))
+                return Path.Combine(OutPath, $"{DateTime.Now:yyyy-MM-dd-HH-mm-ss}{Extension}");
+
+            var now = DateTime.Now;
+
+            var filename = FilenameFormat
+                .Replace("%yyyy%", now.ToString("yyyy"))
+                .Replace("%yy%", now.ToString("yy"))
+                
+                .Replace("%MMMM%", now.ToString("MMMM"))
+                .Replace("%MMM%", now.ToString("MMM"))
+                .Replace("%MM%", now.ToString("MM"))
+                
+                .Replace("%dd%", now.ToString("dd"))
+                .Replace("%ddd%", now.ToString("ddd"))
+                .Replace("%dddd%", now.ToString("dddd"))
+                
+                .Replace("%HH%", now.ToString("HH"))
+                .Replace("%hh%", now.ToString("hh"))
+
+                .Replace("%mm%", now.ToString("mm"))
+                .Replace("%ss%", now.ToString("ss"))
+                .Replace("%tt%", now.ToString("tt"))
+                .Replace("%zzz%", now.ToString("zzz"));
+            
+            var path = Path.Combine(OutPath, $"{filename}{Extension}");
+
+            if (!File.Exists(path))
+                return path;
+
+            var i = 1;
+
+            do
+            {
+                path = Path.Combine(OutPath, $"{filename} ({i++}){Extension}");
+            }
+            while (File.Exists(path));
+
+            return path;
+        }
+
         public bool IncludeCursor
         {
-            get => Get<bool>();
-            set => Set(value);
-        }
-
-        [UserScopedSetting]
-        [DefaultSettingValue("False")]
-        public bool MinimizeOnStart
-        {
-            get => Get<bool>();
-            set => Set(value);
-        }
-        
-        [UserScopedSetting]
-        [DefaultSettingValue("70")]
-        public int VideoQuality
-        {
-            get => Get<int>();
-            set => Set(value);
-        }
-
-        [UserScopedSetting]
-        [DefaultSettingValue("10")]
-        public int FrameRate
-        {
-            get => Get<int>();
-            set => Set(value);
-        }
-
-        [UserScopedSetting]
-        [DefaultSettingValue("False")]
-        public bool MouseClicks
-        {
-            get => Get<bool>();
-            set => Set(value);
-        }
-
-        [UserScopedSetting]
-        [DefaultSettingValue("False")]
-        public bool KeyStrokes
-        {
-            get => Get<bool>();
-            set => Set(value);
-        }
-        
-        [UserScopedSetting]
-        [DefaultSettingValue("en")]
-        public string Language
-        {
-            get => Get<string>();
-            set => Set(value);
-        }
-
-        [SettingsProvider(typeof(ArraySettingsProvider))]
-        [UserScopedSetting]
-        public List<HotkeyModel> Hotkeys
-        {
-            get => Get<List<HotkeyModel>>();
-            set => Set(value);
-        }
-
-        [UserScopedSetting]
-        [DefaultSettingValue("50")]
-        public int AudioQuality
-        {
-            get => Get<int>();
-            set => Set(value);
-        }
-
-        [UserScopedSetting]
-        [DefaultSettingValue("True")]
-        public bool TrayNotify
-        {
-            get => Get<bool>();
-            set => Set(value);
-        }
-
-        #region Transforms
-        [UserScopedSetting]
-        [DefaultSettingValue("False")]
-        public bool DoResize
-        {
-            get => Get<bool>();
-            set => Set(value);
-        }
-        
-        [UserScopedSetting]
-        [DefaultSettingValue("640")]
-        public int ResizeWidth
-        {
-            get => Get<int>();
-            set => Set(value);
-        }
-        
-        [UserScopedSetting]
-        [DefaultSettingValue("400")]
-        public int ResizeHeight
-        {
-            get => Get<int>();
-            set => Set(value);
-        }
-
-        [UserScopedSetting]
-        [DefaultSettingValue("False")]
-        public bool FlipHorizontal
-        {
-            get => Get<bool>();
-            set => Set(value);
-        }
-
-        [UserScopedSetting]
-        [DefaultSettingValue("False")]
-        public bool FlipVertical
-        {
-            get => Get<bool>();
-            set => Set(value);
-        }
-
-        [UserScopedSetting]
-        [DefaultSettingValue("RotateNone")]
-        public RotateBy RotateBy
-        {
-            get => Get<RotateBy>();
-            set => Set(value);
-        }
-        #endregion
-
-        #region Gif
-        [UserScopedSetting]
-        [DefaultSettingValue("False")]
-        public bool GifRepeat
-        {
-            get => Get<bool>();
-            set => Set(value);
-        }
-        
-        [UserScopedSetting]
-        [DefaultSettingValue("0")]
-        public int GifRepeatCount
-        {
-            get => Get<int>();
-            set => Set(value);
-        }
-
-        [UserScopedSetting]
-        [DefaultSettingValue("True")]
-        public bool GifVariable
-        {
-            get => Get<bool>();
-            set => Set(value);
-        }
-        #endregion
-        
-        [UserScopedSetting]
-        [DefaultSettingValue("3")]
-        public int RegionBorderThickness
-        {
-            get => Get<int>();
-            set => Set(value);
-        }
-
-        [UserScopedSetting]
-        [DefaultSettingValue("5000")]
-        public int ScreenShotNotifyTimeout
-        {
-            get => Get<int>();
-            set => Set(value);
-        }
-
-        [UserScopedSetting]
-        [DefaultSettingValue("Black")]
-        public Color VideoBackgroundColor
-        {
-            get => Get<Color>();
+            get => Get(true);
             set => Set(value);
         }
     }

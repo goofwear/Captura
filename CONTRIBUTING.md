@@ -1,3 +1,1 @@
-# Contributing
-
-See our [Contributing Guide](https://github.com/MathewSachin/Captura/wiki/Contributing)
+See [here](https://mathewsachin.github.io/Captura/contributing).

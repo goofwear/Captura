@@ -8,6 +8,7 @@ using System;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Threading.Tasks;
+using Captura;
 using Device = SharpDX.Direct3D11.Device;
 using MapFlags = SharpDX.Direct3D11.MapFlags;
 
@@ -15,59 +16,29 @@ namespace DesktopDuplication
 {
     public class DesktopDuplicator : IDisposable
     {
-        #region Fields
-        readonly Device _device;
-        readonly Texture2DDescription _textureDesc;
-        OutputDescription _outputDesc;
-        readonly OutputDuplication _deskDupl;
-
-        Texture2D _desktopImageTexture;
-        OutputDuplicateFrameInformation _frameInfo;
-
-        Rectangle _rect;
-
+        readonly Texture2D _desktopImageTexture;
+        readonly Rectangle _rect;
         readonly bool _includeCursor;
-        #endregion
+        readonly DuplCapture _duplCapture;
+        readonly Device _device;
 
         public int Timeout { get; set; }
 
-        public DesktopDuplicator(Rectangle Rect, bool IncludeCursor, int Monitor, int Adapter = 0)
+        public DesktopDuplicator(Rectangle Rect, bool IncludeCursor, Adapter Adapter, Output1 Output)
         {
+            _device = new Device(Adapter);
+
+            _duplCapture = new DuplCapture(_device, Output);
             _rect = Rect;
             _includeCursor = IncludeCursor;
 
-            Adapter1 adapter;
-            try
-            {
-                adapter = new Factory1().GetAdapter1(Adapter);
-            }
-            catch (SharpDXException e)
-            {
-                throw new Exception("Could not find the specified graphics card adapter.", e);
-            }
-
-            _device = new Device(adapter);
-
-            Output output;
-            try
-            {
-                output = adapter.GetOutput(Monitor);
-            }
-            catch (SharpDXException e)
-            {
-                throw new Exception("Could not find the specified output device.", e);
-            }
-
-            var output1 = output.QueryInterface<Output1>();
-            _outputDesc = output.Description;
-            
-            _textureDesc = new Texture2DDescription
+            var textureDesc = new Texture2DDescription
             {
                 CpuAccessFlags = CpuAccessFlags.Read,
                 BindFlags = BindFlags.None,
                 Format = Format.B8G8R8A8_UNorm,
-                Width = _rect.Width,
-                Height = _rect.Height,
+                Width = Rect.Width,
+                Height = Rect.Height,
                 OptionFlags = ResourceOptionFlags.None,
                 MipLevels = 1,
                 ArraySize = 1,
@@ -75,59 +46,38 @@ namespace DesktopDuplication
                 Usage = ResourceUsage.Staging
             };
 
-            try
-            {
-                _deskDupl = output1.DuplicateOutput(_device);
-            }
-            catch (SharpDXException e) when (e.Descriptor == SharpDX.DXGI.ResultCode.NotCurrentlyAvailable)
-            {
-                throw new Exception("There is already the maximum number of applications using the Desktop Duplication API running, please close one of the applications and try again.", e);
-            }
-            catch (SharpDXException e) when (e.Descriptor == SharpDX.DXGI.ResultCode.Unsupported)
-            {
-                throw new NotSupportedException("Desktop Duplication is not supported on this system.\nIf you have multiple graphic cards, try running Captura on integrated graphics.", e);
-            }
+            _desktopImageTexture = new Texture2D(_device, textureDesc);
         }
         
-        Bitmap _lastFrame;
-
-        public Bitmap Capture()
+        public IBitmapFrame Capture()
         {
-            if (_desktopImageTexture == null)
-                _desktopImageTexture = new Texture2D(_device, _textureDesc);
-
-            SharpDX.DXGI.Resource desktopResource;
+            OutputDuplicateFrameInformation? frameInfo;
 
             try
             {
-                _deskDupl.AcquireNextFrame(Timeout, out _frameInfo, out desktopResource);
+                frameInfo = _duplCapture.Get(_desktopImageTexture, Timeout);
             }
-            catch (SharpDXException e) when (e.Descriptor == SharpDX.DXGI.ResultCode.WaitTimeout)
+            catch
             {
-                return _lastFrame ?? new Bitmap(_rect.Width, _rect.Height);
-            }
-            catch (SharpDXException e) when (e.ResultCode.Failure)
-            {
-                throw new Exception("Failed to acquire next frame.", e);
-            }
-            
-            using (desktopResource)
-            {
-                using (var tempTexture = desktopResource.QueryInterface<Texture2D>())
+                try { _duplCapture.Init(); }
+                catch
                 {
-                    var resourceRegion = new ResourceRegion(_rect.Left, _rect.Top, 0, _rect.Right, _rect.Bottom, 1);
-
-                    _device.ImmediateContext.CopySubresourceRegion(tempTexture, 0, resourceRegion, _desktopImageTexture, 0);
+                    // ignored
                 }
+
+                return RepeatFrame.Instance;
             }
 
-            ReleaseFrame();
+            if (frameInfo is null)
+                return RepeatFrame.Instance;
 
             var mapSource = _device.ImmediateContext.MapSubresource(_desktopImageTexture, 0, MapMode.Read, MapFlags.None);
 
             try
             {
-                return ProcessFrame(mapSource.DataPointer, mapSource.RowPitch);
+                var bmp = ProcessFrame(mapSource.DataPointer, mapSource.RowPitch, frameInfo.Value);
+
+                return new OneTimeFrame(bmp);
             }
             finally
             {
@@ -135,52 +85,37 @@ namespace DesktopDuplication
             }
         }
 
-        Bitmap ProcessFrame(IntPtr SourcePtr, int SourceRowPitch)
+        Bitmap ProcessFrame(IntPtr SourcePtr, int SourceRowPitch, OutputDuplicateFrameInformation FrameInfo)
         {
-            _lastFrame = new Bitmap(_rect.Width, _rect.Height, PixelFormat.Format32bppRgb);
+            var frame = new Bitmap(_rect.Width, _rect.Height, PixelFormat.Format32bppRgb);
 
             // Copy pixels from screen capture Texture to GDI bitmap
-            var mapDest = _lastFrame.LockBits(new Rectangle(0, 0, _rect.Width, _rect.Height), ImageLockMode.WriteOnly, _lastFrame.PixelFormat);
+            var mapDest = frame.LockBits(new Rectangle(0, 0, _rect.Width, _rect.Height), ImageLockMode.WriteOnly, frame.PixelFormat);
 
-            Parallel.For(0, _rect.Height, y =>
+            Parallel.For(0, _rect.Height, Y =>
             {
-                Utilities.CopyMemory(mapDest.Scan0 + y * mapDest.Stride,
-                    SourcePtr + y * SourceRowPitch,
+                Utilities.CopyMemory(mapDest.Scan0 + Y * mapDest.Stride,
+                    SourcePtr + Y * SourceRowPitch,
                     _rect.Width * 4);
             });
-                        
-            // Release source and dest locks
-            _lastFrame.UnlockBits(mapDest);
 
-            if (_includeCursor && _frameInfo.PointerPosition.Visible)
+            // Release source and dest locks
+            frame.UnlockBits(mapDest);
+
+            if (_includeCursor && (FrameInfo.LastMouseUpdateTime == 0 || FrameInfo.PointerPosition.Visible))
             {
-                using (var g = Graphics.FromImage(_lastFrame))
+                using (var g = Graphics.FromImage(frame))
                     MouseCursor.Draw(g, P => new Point(P.X - _rect.X, P.Y - _rect.Y));
             }
 
-            return _lastFrame;
-        }
-        
-        void ReleaseFrame()
-        {
-            try
-            {
-                _deskDupl.ReleaseFrame();
-            }
-            catch (SharpDXException e)
-            {
-                if (e.ResultCode.Failure)
-                {
-                    throw new Exception("Failed to release frame.", e);
-                }
-            }
+            return frame;
         }
 
         public void Dispose()
         {
             try
             {
-                _deskDupl?.Dispose();
+                _duplCapture?.Dispose();
                 _desktopImageTexture?.Dispose();
                 _device?.Dispose();
             }

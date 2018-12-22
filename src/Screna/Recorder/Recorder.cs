@@ -1,10 +1,11 @@
-﻿using Screna.Audio;
-using System;
-using System.Collections.Concurrent;
+﻿using System;
 using System.Diagnostics;
-using System.Drawing;
 using System.Threading;
 using System.Threading.Tasks;
+using Captura;
+using Captura.Audio;
+
+// ReSharper disable MethodSupportsCancellation
 
 namespace Screna
 {
@@ -22,12 +23,15 @@ namespace Screna
 
         readonly int _frameRate;
 
-        readonly BlockingCollection<Bitmap> _frames;
         readonly Stopwatch _sw;
 
         readonly ManualResetEvent _continueCapturing;
+        readonly CancellationTokenSource _cancellationTokenSource;
+        readonly CancellationToken _cancellationToken;
 
-        readonly Task _writeTask, _recordTask;
+        readonly Task _recordTask;
+
+        readonly object _syncLock = new object();
         #endregion
 
         /// <summary>
@@ -43,6 +47,12 @@ namespace Screna
             _imageProvider = ImageProvider ?? throw new ArgumentNullException(nameof(ImageProvider));
             _audioProvider = AudioProvider;
 
+            _cancellationTokenSource = new CancellationTokenSource();
+            _cancellationToken = _cancellationTokenSource.Token;
+
+            if (FrameRate <= 0)
+                throw new ArgumentException("Frame Rate must be possitive", nameof(FrameRate));
+
             _frameRate = FrameRate;
 
             _continueCapturing = new ManualResetEvent(false);
@@ -52,10 +62,8 @@ namespace Screna
             else _audioProvider = null;
 
             _sw = new Stopwatch();
-            _frames = new BlockingCollection<Bitmap>();
 
             _recordTask = Task.Factory.StartNew(async () => await DoRecord(), TaskCreationOptions.LongRunning);
-            _writeTask = Task.Factory.StartNew(DoWrite, TaskCreationOptions.LongRunning);
         }
 
         /// <summary>
@@ -68,27 +76,7 @@ namespace Screna
             _audioWriter = AudioWriter ?? throw new ArgumentNullException(nameof(AudioWriter));
             _audioProvider = AudioProvider ?? throw new ArgumentNullException(nameof(AudioProvider));
 
-            _audioProvider.DataAvailable += (s, e) => _audioWriter.Write(e.Buffer, 0, e.Length);
-        }
-
-        void DoWrite()
-        {
-            try
-            {
-                while (!_frames.IsCompleted)
-                {
-                    _frames.TryTake(out var img, -1);
-
-                    if (img != null)
-                        _videoWriter.WriteFrame(img);
-                }
-            }
-            catch (Exception E)
-            {
-                ErrorOccured?.Invoke(E);
-
-                Dispose(true, false);
-            }
+            _audioProvider.DataAvailable += (S, E) => _audioWriter.Write(E.Buffer, 0, E.Length);
         }
 
         async Task DoRecord()
@@ -98,14 +86,14 @@ namespace Screna
                 var frameInterval = TimeSpan.FromSeconds(1.0 / _frameRate);
                 var frameCount = 0;
 
-                Task<Bitmap> task = null;
+                Task<bool> task = null;
 
                 // Returns false when stopped
-                bool AddFrame(Bitmap Frame)
+                bool AddFrame(IBitmapFrame Frame)
                 {
                     try
                     {
-                        _frames.Add(Frame);
+                        _videoWriter.WriteFrame(Frame);
 
                         ++frameCount;
 
@@ -129,28 +117,34 @@ namespace Screna
                     }
                 }
 
-                while (CanContinue() && !_frames.IsAddingCompleted)
+                while (CanContinue() && !_cancellationToken.IsCancellationRequested)
                 {
                     var timestamp = DateTime.Now;
 
                     if (task != null)
                     {
-                        var frame = await task;
-
-                        if (!AddFrame(frame))
+                        // If false, stop recording
+                        if (!await task)
                             return;
 
-                        var requiredFrames = _sw.Elapsed.TotalSeconds * _frameRate;
-                        var diff = requiredFrames - frameCount;
-
-                        for (var i = 0; i < diff; ++i)
                         {
-                            if (!AddFrame(frame))
-                                return;
+                            var requiredFrames = _sw.Elapsed.TotalSeconds * _frameRate;
+                            var diff = requiredFrames - frameCount;
+
+                            for (var i = 0; i < diff; ++i)
+                            {
+                                if (!AddFrame(RepeatFrame.Instance))
+                                    return;
+                            }
                         }
                     }
 
-                    task = Task.Factory.StartNew(() => _imageProvider.Capture());
+                    task = Task.Factory.StartNew(() =>
+                    {
+                        var frame = _imageProvider.Capture();
+
+                        return AddFrame(frame);
+                    });
 
                     var timeTillNextFrame = timestamp + frameInterval - DateTime.Now;
 
@@ -158,49 +152,76 @@ namespace Screna
                         Thread.Sleep(timeTillNextFrame);
                 }
             }
-            catch (Exception E)
+            catch (Exception e)
             {
-                ErrorOccured?.Invoke(E);
+                lock (_syncLock)
+                {
+                    if (!_disposed)
+                    {
+                        ErrorOccurred?.Invoke(e);
 
-                Dispose(false, true);
+                        Dispose(false);
+                    }
+                }
             }
         }
 
-        void AudioProvider_DataAvailable(object sender, DataAvailableEventArgs e)
+        void AudioProvider_DataAvailable(object Sender, DataAvailableEventArgs E)
         {
-            _videoWriter.WriteAudio(e.Buffer, e.Length);            
+            try
+            {
+                lock (_syncLock)
+                {
+                    if (_disposed)
+                        return;
+                }
+
+                _videoWriter.WriteAudio(E.Buffer, E.Length);
+            }
+            catch (Exception e)
+            {
+                if (_imageProvider == null)
+                {
+                    lock (_syncLock)
+                    {
+                        if (!_disposed)
+                        {
+                            ErrorOccurred?.Invoke(e);
+
+                            Dispose(true);
+                        }
+                    }
+                }
+            }
         }
 
         #region Dispose
-        void Dispose(bool TerminateRecord, bool TerminateWrite)
+        void Dispose(bool TerminateRecord)
         {
-            ThrowIfDisposed();
+            if (_disposed)
+                return;
+
+            _disposed = true;
 
             _audioProvider?.Stop();
             _audioProvider?.Dispose();
 
             if (_videoWriter != null)
             {
-                _frames.CompleteAdding();
+                _cancellationTokenSource.Cancel();
 
                 _continueCapturing.Set();
 
                 if (TerminateRecord)
                     _recordTask.Wait();
 
-                if (TerminateWrite)
-                    _writeTask.Wait();
-
                 _videoWriter.Dispose();
-                _frames.Dispose();
 
                 _continueCapturing.Dispose();
             }
             else _audioWriter.Dispose();
 
             _imageProvider?.Dispose();
-
-            _disposed = true;
         }
 
         /// <summary>
@@ -208,7 +229,10 @@ namespace Screna
         /// </summary>
         public void Dispose()
         {
-            Dispose(true, true);
+            lock (_syncLock)
+            {
+                Dispose(true);
+            }
         }
 
         bool _disposed;
@@ -216,12 +240,15 @@ namespace Screna
         /// <summary>
         /// Fired when an error occurs
         /// </summary>
-        public event Action<Exception> ErrorOccured;
+        public event Action<Exception> ErrorOccurred;
 
         void ThrowIfDisposed()
         {
-            if (_disposed)
-                throw new ObjectDisposedException("this");
+            lock (_syncLock)
+            {
+                if (_disposed)
+                    throw new ObjectDisposedException("this");
+            }
         }
         #endregion
 

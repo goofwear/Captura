@@ -1,7 +1,7 @@
 ﻿using System;
-using System.Drawing;
 using System.Threading;
 using System.Threading.Tasks;
+using Captura;
 
 namespace Screna
 {
@@ -48,14 +48,14 @@ namespace Screna
             _continueCapturing.Set();
         }
 
-        void Dispose(bool ErrorOccured)
+        void Dispose(bool ErrorOccurred)
         {
             // Resume if Paused
             _continueCapturing.Set();
             
             _stopCapturing.Set();
 
-            if (!ErrorOccured)
+            if (!ErrorOccurred)
                 _recordTask.Wait();
 
             _continueCapturing.Dispose();
@@ -90,8 +90,8 @@ namespace Screna
         {
             try
             {
-                Bitmap lastFrame = null;
-                
+                IBitmapFrame lastFrame = null;
+
                 while (!_stopCapturing.WaitOne(0) && _continueCapturing.WaitOne())
                 {
                     var frame = _imageProvider.Capture();
@@ -103,14 +103,16 @@ namespace Screna
 
                     // delay is the time between this and next frame
                     if (lastFrame != null)
+                    {
                         _videoEncoder.WriteFrame(lastFrame, delay);
+                    }
 
                     lastFrame = frame;
                 }
             }
-            catch (Exception E)
+            catch (Exception e)
             {
-                ErrorOccured?.Invoke(E);
+                ErrorOccurred?.Invoke(e);
 
                 Dispose(true);
             }
@@ -119,6 +121,6 @@ namespace Screna
         /// <summary>
         /// Fired when an Error occurs.
         /// </summary>
-        public event Action<Exception> ErrorOccured;
+        public event Action<Exception> ErrorOccurred;
     }
 }

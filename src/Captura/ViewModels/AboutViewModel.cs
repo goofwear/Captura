@@ -6,6 +6,7 @@ using System.Windows.Input;
 
 namespace Captura
 {
+    // ReSharper disable once ClassNeverInstantiated.Global
     public class AboutViewModel : ViewModelBase
     {
         public ICommand HyperlinkCommand { get; }
@@ -19,7 +20,7 @@ namespace Captura
             Version = Assembly.GetExecutingAssembly().GetName().Version;
         }
 
-        public AboutViewModel()
+        public AboutViewModel(Settings Settings, LanguageManager LanguageManager) : base(Settings, LanguageManager)
         {
             AppVersion = "v" + Version.ToString(3);
 
